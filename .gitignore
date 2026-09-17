@@ -1,0 +1,41 @@
+# Android Studio / IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Gradle and Kotlin
+.gradle/
+.kotlin/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Local Android SDK configuration
+local.properties
+
+# Android build artifacts
+*.apk
+*.aab
+*.ap_
+*.dex
+captures/
+out/
+
+# Native builds
+.cxx/
+.externalNativeBuild/
+cmake-build-*/
+
+# Signing credentials and local secret files
+*.jks
+*.keystore
+keystore.properties
+secrets.properties
+
+# Profiling and diagnostics
+*.hprof
+*.trace
+
+# Operating-system files
+.DS_Store
+Thumbs.db
