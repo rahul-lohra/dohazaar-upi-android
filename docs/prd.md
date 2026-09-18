@@ -194,6 +194,8 @@ Amount
 
 The user cannot continue until all three values pass the validation rules in the UPI compatibility profile. After validation, the app automatically creates payments capped at ₹2,000 and shows the calculated split.
 
+The text-entry screen must also show up to two recent valid payment details, newest first. Each item contains the VPA, merchant name, and total amount. Selecting an item autofills all three fields. A payment is added to this local-only history when the user starts its payment session; selecting the same VPA again replaces its older entry instead of creating a duplicate.
+
 Example:
 
 Automatic split

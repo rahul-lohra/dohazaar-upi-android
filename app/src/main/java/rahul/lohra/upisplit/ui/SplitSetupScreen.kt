@@ -21,7 +21,7 @@ internal fun SplitSetupScreen(
     onContinue: () -> Unit
 ) {
     val splitCount = splitAmounts.size
-    val fullPaymentCount = splitAmounts.count { it == maximumSplitAmount }
+    val fullPaymentCount = (splitCount - 1).coerceAtLeast(0)
     val finalAmount = splitAmounts.lastOrNull().orEmpty()
 
     ScreenList {

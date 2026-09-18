@@ -1,9 +1,11 @@
 package rahul.lohra.upisplit.ui
 
+import android.content.ActivityNotFoundException
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
+import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,12 +29,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.text.NumberFormat
 import java.util.Currency
 import java.util.Locale
+import rahul.lohra.upisplit.data.RecentPaymentDetails
+import rahul.lohra.upisplit.data.RecentPaymentStore
+import rahul.lohra.upisplit.payment.UpiClientStatus
+import rahul.lohra.upisplit.payment.UpiPaymentRequest
+import rahul.lohra.upisplit.payment.buildGooglePayIntent
+import rahul.lohra.upisplit.payment.generateTransactionReference
+import rahul.lohra.upisplit.payment.parseUpiClientResult
 import rahul.lohra.upisplit.ui.theme.UPISplitTheme
 
 private const val PrototypeMerchantName = "ABC Restaurant"
@@ -43,10 +53,14 @@ private const val MaximumAutomaticPaymentCount = 10_000L
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SplitUpiApp() {
+    val context = LocalContext.current
+    val recentPaymentStore = remember(context) { RecentPaymentStore(context) }
+    var recentPayments by remember { mutableStateOf(recentPaymentStore.load()) }
     var screen by rememberSaveable { mutableStateOf(AppScreen.Home) }
     var inputSource by rememberSaveable { mutableStateOf(InputSource.Text) }
     var vpa by rememberSaveable { mutableStateOf("") }
     var merchantName by rememberSaveable { mutableStateOf("") }
+    var merchantCategoryCode by rememberSaveable { mutableStateOf<String?>(null) }
     var amountInput by rememberSaveable { mutableStateOf("") }
     var validationError by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedProvider by rememberSaveable {
@@ -56,6 +70,8 @@ fun SplitUpiApp() {
     var paymentOutcome by rememberSaveable { mutableStateOf<PaymentOutcome?>(null) }
     var hasActiveSession by rememberSaveable { mutableStateOf(false) }
     var showReturnSimulator by rememberSaveable { mutableStateOf(false) }
+    var pendingTransactionReference by rememberSaveable { mutableStateOf<String?>(null) }
+    var paymentLaunchError by rememberSaveable { mutableStateOf<String?>(null) }
 
     val totalPaise = remember(amountInput) { parseAmountToPaise(amountInput) ?: 0L }
     val splitValues = remember(totalPaise) {
@@ -72,11 +88,40 @@ fun SplitUpiApp() {
     val nextAmount = formattedSplitValues.getOrNull(completedPayments)
     val remainingPaise = splitValues.drop(completedPayments).sum()
 
+    fun handlePaymentOutcome(outcome: PaymentOutcome) {
+        paymentOutcome = outcome
+        if (outcome == PaymentOutcome.Success) {
+            completedPayments = (completedPayments + 1).coerceAtMost(splitCount)
+        }
+        screen = AppScreen.Result
+    }
+
+    val googlePayLauncher = rememberLauncherForActivityResult(StartActivityForResult()) { result ->
+        val expectedReference = pendingTransactionReference
+        pendingTransactionReference = null
+        if (expectedReference == null) {
+            handlePaymentOutcome(PaymentOutcome.Unknown)
+        } else {
+            val clientResult = parseUpiClientResult(
+                data = result.data,
+                expectedTransactionReference = expectedReference
+            )
+            val outcome = when (clientResult.status) {
+                UpiClientStatus.Success -> PaymentOutcome.Success
+                UpiClientStatus.Failure -> PaymentOutcome.Failure
+                UpiClientStatus.Submitted -> PaymentOutcome.Submitted
+                UpiClientStatus.Unknown -> PaymentOutcome.Unknown
+            }
+            handlePaymentOutcome(outcome)
+        }
+    }
+
     val photoPicker = rememberLauncherForActivityResult(PickVisualMedia()) { uri ->
         if (uri != null) {
             inputSource = InputSource.Photos
             vpa = PrototypeVpa
             merchantName = PrototypeMerchantName
+            merchantCategoryCode = "5812"
             amountInput = ""
             validationError = null
             screen = AppScreen.ConfirmDetails
@@ -163,6 +208,7 @@ fun SplitUpiApp() {
                         inputSource = InputSource.Text
                         vpa = ""
                         merchantName = ""
+                        merchantCategoryCode = null
                         amountInput = ""
                         validationError = null
                         screen = AppScreen.TextEntry
@@ -193,6 +239,14 @@ fun SplitUpiApp() {
                     merchantName = merchantName,
                     amount = amountInput,
                     errorMessage = validationError,
+                    recentPayments = recentPayments,
+                    onRecentPaymentSelected = { payment ->
+                        vpa = payment.vpa
+                        merchantName = payment.merchantName
+                        merchantCategoryCode = null
+                        amountInput = formatAmountInput(payment.amountPaise)
+                        validationError = null
+                    },
                     onVpaChange = {
                         vpa = it
                         validationError = null
@@ -214,6 +268,7 @@ fun SplitUpiApp() {
                         inputSource = InputSource.Camera
                         vpa = PrototypeVpa
                         merchantName = PrototypeMerchantName
+                        merchantCategoryCode = "5812"
                         amountInput = ""
                         validationError = null
                         screen = AppScreen.ConfirmDetails
@@ -255,6 +310,13 @@ fun SplitUpiApp() {
                     selectedProvider = selectedProvider,
                     onProviderSelected = { selectedProvider = it },
                     onContinue = {
+                        recentPayments = recentPaymentStore.save(
+                            RecentPaymentDetails(
+                                vpa = vpa.trim(),
+                                merchantName = merchantName.trim(),
+                                amountPaise = totalPaise
+                            )
+                        )
                         completedPayments = 0
                         paymentOutcome = null
                         hasActiveSession = true
@@ -269,7 +331,34 @@ fun SplitUpiApp() {
                     completedPayments = completedPayments,
                     splitCount = splitCount,
                     selectedProvider = selectedProvider,
-                    onPay = { showReturnSimulator = true }
+                    usesRealGooglePay = selectedProvider == "Google Pay",
+                    onPay = {
+                        if (selectedProvider == "Google Pay") {
+                            val transactionReference = generateTransactionReference()
+                            val googlePayIntent = buildGooglePayIntent(
+                                UpiPaymentRequest(
+                                    payeeVpa = vpa,
+                                    payeeName = merchantName,
+                                    amountPaise = splitValues.getOrNull(completedPayments) ?: 0L,
+                                    transactionReference = transactionReference,
+                                    merchantCategoryCode = merchantCategoryCode
+                                )
+                            )
+                            if (googlePayIntent.resolveActivity(context.packageManager) == null) {
+                                paymentLaunchError = "Google Pay is not installed or cannot handle this UPI payment."
+                            } else {
+                                pendingTransactionReference = transactionReference
+                                try {
+                                    googlePayLauncher.launch(googlePayIntent)
+                                } catch (_: ActivityNotFoundException) {
+                                    pendingTransactionReference = null
+                                    paymentLaunchError = "Google Pay could not be opened."
+                                }
+                            }
+                        } else {
+                            showReturnSimulator = true
+                        }
+                    }
                 )
                 AppScreen.Result -> paymentOutcome?.let { outcome ->
                     ResultScreen(
@@ -318,11 +407,20 @@ fun SplitUpiApp() {
             onDismiss = { showReturnSimulator = false },
             onOutcome = { outcome ->
                 showReturnSimulator = false
-                paymentOutcome = outcome
-                if (outcome == PaymentOutcome.Success) {
-                    completedPayments = (completedPayments + 1).coerceAtMost(splitCount)
+                handlePaymentOutcome(outcome)
+            }
+        )
+    }
+
+    paymentLaunchError?.let { message ->
+        AlertDialog(
+            onDismissRequest = { paymentLaunchError = null },
+            title = { Text("Unable to open Google Pay") },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = { paymentLaunchError = null }) {
+                    Text("OK")
                 }
-                screen = AppScreen.Result
             }
         )
     }
@@ -363,7 +461,7 @@ private fun SimulatedUpiReturnDialog(
     )
 }
 
-private fun parseAmountToPaise(raw: String): Long? {
+internal fun parseAmountToPaise(raw: String): Long? {
     val normalized = raw
         .replace("₹", "")
         .replace(",", "")
@@ -400,7 +498,12 @@ private fun automaticPaymentCount(totalPaise: Long): Long {
     return ((totalPaise - 1L) / MaximumSplitAmountPaise) + 1L
 }
 
-private fun formatInr(paise: Long): String {
+private fun formatAmountInput(paise: Long): String = BigDecimal
+    .valueOf(paise, 2)
+    .setScale(2)
+    .toPlainString()
+
+internal fun formatInr(paise: Long): String {
     val formatter = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("en-IN")).apply {
         currency = Currency.getInstance("INR")
         minimumFractionDigits = 2
