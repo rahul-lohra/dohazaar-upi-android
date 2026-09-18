@@ -20,9 +20,9 @@ SplitUPI MUST only split an **amount-open, unbound static QR** or a manually ent
 - `am` (amount)
 - `mam` (minimum amount)
 - `tr` (merchant transaction reference)
+- `tid` (transaction identifier)
 - `url` (transaction URL)
 - `sign` (signature)
-- any unknown parameter
 
 NPCI's published merchant-QR guidance says mandatory parameters in a dynamic QR are non-editable. Changing the amount or transaction reference of such a QR can break integrity, merchant reconciliation, or both.
 
@@ -34,7 +34,7 @@ A scanned QR is eligible only when all of these conditions hold:
 
 1. Its scheme is `upi` and authority is `pay`, compared case-insensitively.
 2. Every query key is unique.
-3. Its complete key set is a subset of `pa`, `pn`, `mc`, `tn`, and `cu`.
+3. It does not contain `am`, `mam`, `tr`, `tid`, `url`, or `sign`, compared using ASCII case normalization.
 4. `pa` and `pn` are present and valid under the rules below.
 5. `cu` is absent or exactly `INR` after ASCII case normalization.
 
@@ -48,7 +48,7 @@ The parser MUST percent-decode each key and value exactly once, MUST reject malf
 | `tn` | Transaction note | Optional, at most 80 Unicode characters; reject controls. | Preserve exactly. Do not append split metadata. |
 | `cu` | Currency | Optional on input; if present, only `INR`. | Always emit `INR`. |
 
-Unknown parameters MUST be retained in the parsed diagnostic model, but their presence makes the QR ineligible for splitting. Silently dropping fields and then paying is forbidden.
+Unknown parameters MUST be retained in the parsed diagnostic model, ignored when deciding split eligibility, and omitted from every child-payment URI. This compatibility rule allows provider-specific metadata such as `aid` without claiming to understand or preserve its semantics. The known binding parameters listed above remain ineligible and MUST NOT be ignored.
 
 Manual entry MUST collect a VPA, payee name, and amount. It uses the same `pa`, `pn`, amount, and currency validation. Manual entry MUST NOT invent an MCC.
 
@@ -157,7 +157,8 @@ Do not publish “works with” claims from package discovery alone.
 At minimum, automated tests MUST cover:
 
 - eligible static QR with `pa`, `pn`, `mc`, `tn`, and `cu`;
-- rejection of `am`, `mam`, `tr`, `url`, `sign`, and unknown keys;
+- rejection of `am`, `mam`, `tr`, `tid`, `url`, and `sign`;
+- retention of unknown keys in diagnostics and proof that they are omitted from child-payment URIs;
 - duplicate critical keys and double-encoded input;
 - Unicode payee name, encoded VPA, malformed percent escapes, and control characters;
 - exact paise serialization and split-sum invariants;
@@ -174,6 +175,9 @@ Use these reference fixtures:
 ```text
 # Eligible input QR
 upi://pay?pa=merchant%40bank&pn=ABC%20Restaurant&mc=5812&tn=Table%2012&cu=INR
+
+# Eligible input QR with ignored provider metadata
+upi://pay?pa=merchant%40bank&pn=ABC%20Restaurant&aid=opaque-provider-value
 
 # Ineligible: amount-bound
 upi://pay?pa=merchant%40bank&pn=ABC%20Restaurant&am=100.00&cu=INR

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,6 +28,9 @@ internal fun ScannerPrompt(
     frameTitle: String,
     frameSupportingText: String,
     actionText: String,
+    actionEnabled: Boolean = true,
+    isWorking: Boolean = false,
+    errorMessage: String? = null,
     onAction: () -> Unit
 ) {
     ScreenList {
@@ -52,12 +56,18 @@ internal fun ScannerPrompt(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.medium)
                 ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        modifier = Modifier.size(MaterialTheme.dimensions.iconLarge),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+                    if (isWorking) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(MaterialTheme.dimensions.iconLarge)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(MaterialTheme.dimensions.iconLarge),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                     Text(text = frameTitle, style = MaterialTheme.typography.titleMedium)
                     Text(
                         text = frameSupportingText,
@@ -67,6 +77,21 @@ internal fun ScannerPrompt(
                 }
             }
         }
-        item { PrimaryAction(text = actionText, onClick = onAction) }
+        if (errorMessage != null) {
+            item {
+                Text(
+                    text = errorMessage,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+        item {
+            PrimaryAction(
+                text = actionText,
+                onClick = onAction,
+                enabled = actionEnabled
+            )
+        }
     }
 }

@@ -43,10 +43,11 @@ import rahul.lohra.upisplit.payment.UpiPaymentRequest
 import rahul.lohra.upisplit.payment.buildGooglePayIntent
 import rahul.lohra.upisplit.payment.generateTransactionReference
 import rahul.lohra.upisplit.payment.parseUpiClientResult
+import rahul.lohra.upisplit.qr.UpiQrImageScanResult
+import rahul.lohra.upisplit.qr.scanUpiQrImage
 import rahul.lohra.upisplit.ui.theme.UPISplitTheme
 
 private const val PrototypeMerchantName = "ABC Restaurant"
-private const val PrototypeVpa = "restaurant@upi"
 private const val MaximumSplitAmountPaise = 200_000L
 private const val MaximumAutomaticPaymentCount = 10_000L
 
@@ -61,8 +62,12 @@ fun SplitUpiApp() {
     var vpa by rememberSaveable { mutableStateOf("") }
     var merchantName by rememberSaveable { mutableStateOf("") }
     var merchantCategoryCode by rememberSaveable { mutableStateOf<String?>(null) }
+    var transactionNote by rememberSaveable { mutableStateOf<String?>(null) }
     var amountInput by rememberSaveable { mutableStateOf("") }
     var validationError by rememberSaveable { mutableStateOf<String?>(null) }
+    var isPhotoScanning by rememberSaveable { mutableStateOf(false) }
+    var photoScanError by rememberSaveable { mutableStateOf<String?>(null) }
+    var cameraScanError by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedProvider by rememberSaveable {
         mutableStateOf(PrototypeProviders.first().name)
     }
@@ -117,14 +122,48 @@ fun SplitUpiApp() {
     }
 
     val photoPicker = rememberLauncherForActivityResult(PickVisualMedia()) { uri ->
-        if (uri != null) {
+        if (uri == null) {
+            isPhotoScanning = false
+            photoScanError = null
+            screen = AppScreen.Home
+        } else {
             inputSource = InputSource.Photos
-            vpa = PrototypeVpa
-            merchantName = PrototypeMerchantName
-            merchantCategoryCode = "5812"
-            amountInput = ""
-            validationError = null
-            screen = AppScreen.ConfirmDetails
+            isPhotoScanning = true
+            photoScanError = null
+            scanUpiQrImage(context, uri) { result ->
+                isPhotoScanning = false
+                if (screen != AppScreen.PhotoImport) return@scanUpiQrImage
+                when (result) {
+                    is UpiQrImageScanResult.Success -> {
+                        val paymentData = result.paymentData
+                        vpa = paymentData.payeeVpa
+                        merchantName = paymentData.payeeName
+                        merchantCategoryCode = paymentData.merchantCategoryCode
+                        transactionNote = paymentData.transactionNote
+                        amountInput = ""
+                        validationError = null
+                        screen = AppScreen.ConfirmDetails
+                    }
+                    UpiQrImageScanResult.NoQrCode -> {
+                        photoScanError = "No QR code found in this image."
+                    }
+                    UpiQrImageScanResult.UnsupportedQrCode -> {
+                        photoScanError = "This QR code is not a supported UPI payment QR."
+                    }
+                    is UpiQrImageScanResult.UnsafeToSplit -> {
+                        photoScanError = buildString {
+                            append("This QR fixes or binds transaction details and cannot be split safely.")
+                            append("\nDetected: ")
+                            append(result.paymentData.payeeName)
+                            append(" · ")
+                            append(result.paymentData.payeeVpa)
+                        }
+                    }
+                    UpiQrImageScanResult.ImageReadFailure -> {
+                        photoScanError = "This image could not be read. Choose another image."
+                    }
+                }
+            }
         }
     }
 
@@ -209,17 +248,21 @@ fun SplitUpiApp() {
                         vpa = ""
                         merchantName = ""
                         merchantCategoryCode = null
+                        transactionNote = null
                         amountInput = ""
                         validationError = null
                         screen = AppScreen.TextEntry
                     },
                     onCameraScan = {
                         inputSource = InputSource.Camera
+                        cameraScanError = null
                         validationError = null
                         screen = AppScreen.CameraScan
                     },
                     onPhotoImport = {
                         inputSource = InputSource.Photos
+                        photoScanError = null
+                        isPhotoScanning = false
                         validationError = null
                         screen = AppScreen.PhotoImport
                     },
@@ -244,6 +287,7 @@ fun SplitUpiApp() {
                         vpa = payment.vpa
                         merchantName = payment.merchantName
                         merchantCategoryCode = null
+                        transactionNote = null
                         amountInput = formatAmountInput(payment.amountPaise)
                         validationError = null
                     },
@@ -264,18 +308,43 @@ fun SplitUpiApp() {
                     }
                 )
                 AppScreen.CameraScan -> CameraScanScreen(
-                    onQrDetected = {
-                        inputSource = InputSource.Camera
-                        vpa = PrototypeVpa
-                        merchantName = PrototypeMerchantName
-                        merchantCategoryCode = "5812"
-                        amountInput = ""
-                        validationError = null
-                        screen = AppScreen.ConfirmDetails
+                    errorMessage = cameraScanError,
+                    onScanResult = { result ->
+                        when (result) {
+                            is UpiQrImageScanResult.Success -> {
+                                val paymentData = result.paymentData
+                                inputSource = InputSource.Camera
+                                vpa = paymentData.payeeVpa
+                                merchantName = paymentData.payeeName
+                                merchantCategoryCode = paymentData.merchantCategoryCode
+                                transactionNote = paymentData.transactionNote
+                                amountInput = ""
+                                validationError = null
+                                cameraScanError = null
+                                screen = AppScreen.ConfirmDetails
+                            }
+                            UpiQrImageScanResult.NoQrCode -> Unit
+                            UpiQrImageScanResult.UnsupportedQrCode -> {
+                                cameraScanError = "This QR code is not a supported UPI payment QR."
+                            }
+                            is UpiQrImageScanResult.UnsafeToSplit -> {
+                                cameraScanError =
+                                    "This QR fixes or binds transaction details and cannot be split safely."
+                            }
+                            UpiQrImageScanResult.ImageReadFailure -> {
+                                cameraScanError = "The QR code could not be read. Try again."
+                            }
+                        }
+                    },
+                    onCameraError = { message ->
+                        cameraScanError = message
                     }
                 )
                 AppScreen.PhotoImport -> PhotoImportScreen(
+                    isScanning = isPhotoScanning,
+                    errorMessage = photoScanError,
                     onChoosePhoto = {
+                        photoScanError = null
                         photoPicker.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly))
                     }
                 )
@@ -283,6 +352,8 @@ fun SplitUpiApp() {
                     inputSource = inputSource,
                     merchantName = merchantName,
                     vpa = vpa,
+                    merchantCategoryCode = merchantCategoryCode,
+                    transactionNote = transactionNote,
                     amount = amountInput,
                     errorMessage = validationError,
                     onAmountChange = {
@@ -341,7 +412,8 @@ fun SplitUpiApp() {
                                     payeeName = merchantName,
                                     amountPaise = splitValues.getOrNull(completedPayments) ?: 0L,
                                     transactionReference = transactionReference,
-                                    merchantCategoryCode = merchantCategoryCode
+                                    merchantCategoryCode = merchantCategoryCode,
+                                    transactionNote = transactionNote
                                 )
                             )
                             if (googlePayIntent.resolveActivity(context.packageManager) == null) {

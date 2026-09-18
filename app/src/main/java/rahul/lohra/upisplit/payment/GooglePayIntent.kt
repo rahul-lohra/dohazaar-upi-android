@@ -13,7 +13,8 @@ internal data class UpiPaymentRequest(
     val payeeName: String,
     val amountPaise: Long,
     val transactionReference: String,
-    val merchantCategoryCode: String? = null
+    val merchantCategoryCode: String? = null,
+    val transactionNote: String? = null
 )
 
 internal enum class UpiClientStatus {
@@ -52,6 +53,9 @@ internal fun buildGooglePayIntent(request: UpiPaymentRequest): Intent {
 
     request.merchantCategoryCode?.let { merchantCategoryCode ->
         uriBuilder.appendQueryParameter("mc", merchantCategoryCode)
+    }
+    request.transactionNote?.let { transactionNote ->
+        uriBuilder.appendQueryParameter("tn", transactionNote)
     }
 
     return Intent(Intent.ACTION_VIEW, uriBuilder.build()).apply {

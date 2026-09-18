@@ -28,6 +28,8 @@ internal fun ConfirmDetailsScreen(
     inputSource: InputSource,
     merchantName: String,
     vpa: String,
+    merchantCategoryCode: String?,
+    transactionNote: String?,
     amount: String,
     errorMessage: String?,
     onAmountChange: (String) -> Unit,
@@ -72,11 +74,20 @@ internal fun ConfirmDetailsScreen(
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Text(
-                    text = "Merchant category 5812",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (merchantCategoryCode != null) {
+                    Text(
+                        text = "Merchant category $merchantCategoryCode",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (transactionNote != null) {
+                    Text(
+                        text = transactionNote,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
         item {

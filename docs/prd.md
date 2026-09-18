@@ -230,7 +230,7 @@ Amount-open example:
 
 upi://pay?pa=merchant@upi&pn=ABC%20Restaurant&mc=5812&cu=INR
 
-The parser must extract all known fields and retain unknown parameters internally. Split eligibility and emitted fields are controlled by the UPI compatibility profile; preserving a field does not mean it is safe to modify or re-emit.
+The parser must extract all known fields and retain unknown parameters internally. Unknown provider-specific parameters such as `aid` are ignored for split eligibility and never copied into child-payment intents. Known binding parameters remain ineligible under the UPI compatibility profile; preserving a field does not mean it is safe to modify or re-emit.
 
 If the image contains no QR, show:
 
