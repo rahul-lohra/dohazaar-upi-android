@@ -155,7 +155,7 @@ All three flows then converge:
 
 Payment Details
 ↓
-Choose split
+Calculate automatic ₹2,000 splits
 ↓
 Split Preview
 ↓
@@ -192,12 +192,12 @@ Merchant name
 Amount
 [ ₹10,000 ]
 
-The user cannot continue until all three values pass the validation rules in the UPI compatibility profile. After validation, the user selects the number of payments and sees the calculated split.
+The user cannot continue until all three values pass the validation rules in the UPI compatibility profile. After validation, the app automatically creates payments capped at ₹2,000 and shows the calculated split.
 
 Example:
 
-Split into
-[ 5 ] payments
+Automatic split
+Maximum ₹2,000 per payment
 
 Result
 ₹2,000 × 5
@@ -292,32 +292,25 @@ If mc is absent, do not fabricate a merchant category.
 
 9. Split Calculation
 
-User enters:
+The application must split the total automatically. Each payment must be no more than ₹2,000. Create ₹2,000 payments until the remaining amount is ₹2,000 or less, then create one final payment for that remainder.
 
-Total = ₹10,000
-Splits = 3
+Examples:
 
-The application must produce:
+₹3,500 → ₹2,000 + ₹1,500
 
-₹3,333
-₹3,333
-₹3,334
+₹4,000 → ₹2,000 + ₹2,000
 
-The sum must always exactly equal the original amount.
+₹10,001 → ₹2,000 + ₹2,000 + ₹2,000 + ₹2,000 + ₹2,000 + ₹1
 
-Algorithm:
+The number of payments is derived and is not user-selectable. The sum must always exactly equal the original amount, and no payment may exceed ₹2,000.
 
-base = total / numberOfSplits
-remainder = total % numberOfSplits
+Algorithm in paise:
 
-Distribute the remainder deterministically.
+maximumSplitAmount = 200000
+fullPaymentCount = total / maximumSplitAmount
+remainder = total % maximumSplitAmount
 
-Example:
-
-₹100 / 3
-33.33
-33.33
-33.34
+Create `fullPaymentCount` payments of `maximumSplitAmount`. If `remainder > 0`, append one final payment containing the remainder.
 
 All calculations should operate in the smallest currency unit.
 
@@ -738,9 +731,6 @@ UPI ID
 restaurant@upi
 Total amount
 [ ₹10,000 ]
-Split into
-[-]  5  [+]
-₹2,000 per payment
 [ Continue ]
 
 Because the MVP only splits amount-open QRs, the user enters the total amount after a successful QR scan.
@@ -753,9 +743,15 @@ Merchant name
 [ ABC Restaurant ]
 Amount
 [ ₹10,000 ]
-Split into
-[ 5 ]
 [ Continue ]
+
+After either input flow, show:
+
+Automatic split
+Maximum per payment  ₹2,000
+Payments             5
+Final payment        ₹2,000
+[ Review split ]
 
 ⸻
 
@@ -989,16 +985,19 @@ the same payload produces the same parsed result from camera and phone media
 
 Split calculation
 
-100 / 2
-100 / 3
-100 / 6
-10000 / 7
+₹1 → ₹1
+₹2,000 → ₹2,000
+₹2,000.01 → ₹2,000 + ₹0.01
+₹3,500 → ₹2,000 + ₹1,500
+₹4,000 → ₹2,000 + ₹2,000
+₹10,001 → five ₹2,000 payments + ₹1
 smallest possible amount
-remainder distribution
 
-Invariant:
+Invariants:
 
 sum(splitAmounts) == originalAmount
+every splitAmount <= ₹2,000
+every splitAmount > ₹0
 
 Transaction state machine
 
@@ -1029,17 +1028,16 @@ The MVP is complete when a user can:
 4. Alternatively, select an image containing a valid UPI QR from phone media.
 5. See the same normalized payment details regardless of input method.
 6. Enter/select the total amount.
-7. Select number of splits.
-8. See the exact split amounts.
-9. Select an installed UPI application.
-10. Launch the UPI payment with the split amount.
-11. Complete the payment in the external UPI application.
-12. Return to SplitUPI.
-13. See the payment result.
-14. Manually initiate the next split.
-15. Complete all splits.
-16. Close/reopen the application and recover the active split session.
-17. Avoid accidental duplicate payment when a transaction is SUBMITTED or UNKNOWN.
+7. See the automatic payment count and exact split amounts capped at ₹2,000.
+8. Select an installed UPI application.
+9. Launch the UPI payment with the split amount.
+10. Complete the payment in the external UPI application.
+11. Return to SplitUPI.
+12. See the payment result.
+13. Manually initiate the next split.
+14. Complete all splits.
+15. Close/reopen the application and recover the active split session.
+16. Avoid accidental duplicate payment when a transaction is SUBMITTED or UNKNOWN.
 
 ⸻
 
