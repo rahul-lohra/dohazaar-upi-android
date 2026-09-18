@@ -28,12 +28,29 @@ internal enum class PaymentOutcome {
 
 internal data class PaymentProvider(
     val name: String,
-    val initials: String
+    val initials: String,
+    val packageName: String
 )
 
-internal val PrototypeProviders = listOf(
-    PaymentProvider(name = "Google Pay", initials = "G"),
-    PaymentProvider(name = "PhonePe", initials = "P"),
-    PaymentProvider(name = "Paytm", initials = "Pt"),
-    PaymentProvider(name = "BHIM", initials = "B")
+internal val UpiPaymentProviders = listOf(
+    PaymentProvider(
+        name = "Google Pay",
+        initials = "G",
+        packageName = "com.google.android.apps.nbu.paisa.user"
+    ),
+    PaymentProvider(
+        name = "PhonePe",
+        initials = "P",
+        packageName = "com.phonepe.app"
+    ),
+    PaymentProvider(
+        name = "Paytm",
+        initials = "Pt",
+        packageName = "net.one97.paytm"
+    ),
+    PaymentProvider(
+        name = "BHIM",
+        initials = "B",
+        packageName = "in.org.npci.upiapp"
+    )
 )

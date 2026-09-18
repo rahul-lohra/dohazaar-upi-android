@@ -28,7 +28,6 @@ internal fun PaymentScreen(
     completedPayments: Int,
     splitCount: Int,
     selectedProvider: String,
-    usesRealGooglePay: Boolean,
     onPay: () -> Unit
 ) {
     val sequence = completedPayments + 1
@@ -83,11 +82,7 @@ internal fun PaymentScreen(
         }
         item {
             Text(
-                text = if (usesRealGooglePay) {
-                    "Google Pay will open for authorization. Its callback is provisional until verified by a PSP or bank."
-                } else {
-                    "Prototype: choose a simulated UPI return state on the next dialog."
-                },
+                text = "$selectedProvider will open for authorization. Its callback is provisional until verified by a PSP or bank.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

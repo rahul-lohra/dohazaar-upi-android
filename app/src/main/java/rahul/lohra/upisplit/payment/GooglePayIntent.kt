@@ -6,8 +6,6 @@ import java.math.BigDecimal
 import java.security.SecureRandom
 import java.util.Locale
 
-internal const val GooglePayPackageName = "com.google.android.apps.nbu.paisa.user"
-
 internal data class UpiPaymentRequest(
     val payeeVpa: String,
     val payeeName: String,
@@ -33,8 +31,12 @@ internal data class UpiClientResult(
     val rawResponse: String?
 )
 
-internal fun buildGooglePayIntent(request: UpiPaymentRequest): Intent {
+internal fun buildUpiPaymentIntent(
+    request: UpiPaymentRequest,
+    packageName: String
+): Intent {
     require(request.amountPaise > 0L) { "UPI amount must be positive." }
+    require(packageName.isNotBlank()) { "UPI app package name must not be blank." }
     require(request.transactionReference.all(Char::isDigit)) {
         "UPI transaction reference must be numeric."
     }
@@ -59,7 +61,7 @@ internal fun buildGooglePayIntent(request: UpiPaymentRequest): Intent {
     }
 
     return Intent(Intent.ACTION_VIEW, uriBuilder.build()).apply {
-        setPackage(GooglePayPackageName)
+        setPackage(packageName)
     }
 }
 

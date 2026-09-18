@@ -7,7 +7,6 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -40,7 +39,7 @@ import rahul.lohra.upisplit.data.RecentPaymentDetails
 import rahul.lohra.upisplit.data.RecentPaymentStore
 import rahul.lohra.upisplit.payment.UpiClientStatus
 import rahul.lohra.upisplit.payment.UpiPaymentRequest
-import rahul.lohra.upisplit.payment.buildGooglePayIntent
+import rahul.lohra.upisplit.payment.buildUpiPaymentIntent
 import rahul.lohra.upisplit.payment.generateTransactionReference
 import rahul.lohra.upisplit.payment.parseUpiClientResult
 import rahul.lohra.upisplit.qr.UpiQrImageScanResult
@@ -69,12 +68,11 @@ fun SplitUpiApp() {
     var photoScanError by rememberSaveable { mutableStateOf<String?>(null) }
     var cameraScanError by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedProvider by rememberSaveable {
-        mutableStateOf(PrototypeProviders.first().name)
+        mutableStateOf(UpiPaymentProviders.first().name)
     }
     var completedPayments by rememberSaveable { mutableIntStateOf(0) }
     var paymentOutcome by rememberSaveable { mutableStateOf<PaymentOutcome?>(null) }
     var hasActiveSession by rememberSaveable { mutableStateOf(false) }
-    var showReturnSimulator by rememberSaveable { mutableStateOf(false) }
     var pendingTransactionReference by rememberSaveable { mutableStateOf<String?>(null) }
     var paymentLaunchError by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -101,7 +99,7 @@ fun SplitUpiApp() {
         screen = AppScreen.Result
     }
 
-    val googlePayLauncher = rememberLauncherForActivityResult(StartActivityForResult()) { result ->
+    val upiPaymentLauncher = rememberLauncherForActivityResult(StartActivityForResult()) { result ->
         val expectedReference = pendingTransactionReference
         pendingTransactionReference = null
         if (expectedReference == null) {
@@ -377,7 +375,7 @@ fun SplitUpiApp() {
                     onContinue = { screen = AppScreen.AppSelection }
                 )
                 AppScreen.AppSelection -> AppSelectionScreen(
-                    providers = PrototypeProviders,
+                    providers = UpiPaymentProviders,
                     selectedProvider = selectedProvider,
                     onProviderSelected = { selectedProvider = it },
                     onContinue = {
@@ -402,33 +400,33 @@ fun SplitUpiApp() {
                     completedPayments = completedPayments,
                     splitCount = splitCount,
                     selectedProvider = selectedProvider,
-                    usesRealGooglePay = selectedProvider == "Google Pay",
                     onPay = {
-                        if (selectedProvider == "Google Pay") {
-                            val transactionReference = generateTransactionReference()
-                            val googlePayIntent = buildGooglePayIntent(
-                                UpiPaymentRequest(
-                                    payeeVpa = vpa,
-                                    payeeName = merchantName,
-                                    amountPaise = splitValues.getOrNull(completedPayments) ?: 0L,
-                                    transactionReference = transactionReference,
-                                    merchantCategoryCode = merchantCategoryCode,
-                                    transactionNote = transactionNote
-                                )
-                            )
-                            if (googlePayIntent.resolveActivity(context.packageManager) == null) {
-                                paymentLaunchError = "Google Pay is not installed or cannot handle this UPI payment."
-                            } else {
-                                pendingTransactionReference = transactionReference
-                                try {
-                                    googlePayLauncher.launch(googlePayIntent)
-                                } catch (_: ActivityNotFoundException) {
-                                    pendingTransactionReference = null
-                                    paymentLaunchError = "Google Pay could not be opened."
-                                }
-                            }
+                        val provider = UpiPaymentProviders.first { candidate ->
+                            candidate.name == selectedProvider
+                        }
+                        val transactionReference = generateTransactionReference()
+                        val paymentIntent = buildUpiPaymentIntent(
+                            request = UpiPaymentRequest(
+                                payeeVpa = vpa,
+                                payeeName = merchantName,
+                                amountPaise = splitValues.getOrNull(completedPayments) ?: 0L,
+                                transactionReference = transactionReference,
+                                merchantCategoryCode = merchantCategoryCode,
+                                transactionNote = transactionNote
+                            ),
+                            packageName = provider.packageName
+                        )
+                        if (paymentIntent.resolveActivity(context.packageManager) == null) {
+                            paymentLaunchError =
+                                "$selectedProvider is not installed, not set up for UPI, or cannot handle this payment."
                         } else {
-                            showReturnSimulator = true
+                            pendingTransactionReference = transactionReference
+                            try {
+                                upiPaymentLauncher.launch(paymentIntent)
+                            } catch (_: ActivityNotFoundException) {
+                                pendingTransactionReference = null
+                                paymentLaunchError = "$selectedProvider could not be opened."
+                            }
                         }
                     }
                 )
@@ -474,20 +472,10 @@ fun SplitUpiApp() {
         }
     }
 
-    if (showReturnSimulator) {
-        SimulatedUpiReturnDialog(
-            onDismiss = { showReturnSimulator = false },
-            onOutcome = { outcome ->
-                showReturnSimulator = false
-                handlePaymentOutcome(outcome)
-            }
-        )
-    }
-
     paymentLaunchError?.let { message ->
         AlertDialog(
             onDismissRequest = { paymentLaunchError = null },
-            title = { Text("Unable to open Google Pay") },
+            title = { Text("Unable to open $selectedProvider") },
             text = { Text(message) },
             confirmButton = {
                 TextButton(onClick = { paymentLaunchError = null }) {
@@ -496,41 +484,6 @@ fun SplitUpiApp() {
             }
         )
     }
-}
-
-@Composable
-private fun SimulatedUpiReturnDialog(
-    onDismiss: () -> Unit,
-    onOutcome: (PaymentOutcome) -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Simulate UPI app return") },
-        text = {
-            Column {
-                Text(
-                    text = "Choose the callback state returned by the external UPI app.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                PaymentOutcome.entries.forEach { outcome ->
-                    TextButton(onClick = { onOutcome(outcome) }) {
-                        Text(
-                            when (outcome) {
-                                PaymentOutcome.Success -> "SUCCESS"
-                                PaymentOutcome.Failure -> "FAILURE"
-                                PaymentOutcome.Submitted -> "SUBMITTED"
-                                PaymentOutcome.Unknown -> "No or invalid response"
-                            }
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
 }
 
 internal fun parseAmountToPaise(raw: String): Long? {

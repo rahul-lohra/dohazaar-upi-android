@@ -12,6 +12,8 @@ Account creation: None
 
 Protocol compatibility: [SplitUPI UPI Compatibility Profile](./upi-compatibility-spec.md). The compatibility profile controls URI, QR eligibility, handoff, and callback behavior where it is more restrictive than this PRD.
 
+Payment handoff: [SplitUPI Android Payment Launcher Specification](./payment-launcher-spec.md). The launcher specification controls UPI-app discovery, named-app targeting, generic fallback, and launch failure behavior.
+
 UX reference: [Interactive SplitUPI UX Blueprint](./ux/splitupi-ux-blueprint.html).
 
 ⸻

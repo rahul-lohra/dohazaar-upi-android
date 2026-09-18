@@ -32,7 +32,7 @@ internal fun AppSelectionScreen(
         item {
             ScreenHeading(
                 title = "Choose UPI app",
-                supportingText = "Prototype list of compatible apps installed on this phone."
+                supportingText = "Availability and UPI readiness are checked before launch."
             )
         }
         items(providers) { provider ->

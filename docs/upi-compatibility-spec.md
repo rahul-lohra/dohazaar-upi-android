@@ -9,6 +9,8 @@ Protocol: generic UPI deep link (`upi://pay`)
 
 This document defines the small, conservative UPI surface supported by the SplitUPI MVP. It covers QR ingestion, child-payment URI generation, Android app handoff, and callback parsing.
 
+Detailed UPI-app discovery and handoff behavior is defined by the [SplitUPI Android Payment Launcher Specification](./payment-launcher-spec.md).
+
 This is an application compatibility profile, not an NPCI certification or a substitute for the current NPCI UPI Linking Specification, acquiring-bank rules, or PSP onboarding. When this document conflicts with the product PRD, this document controls protocol behavior.
 
 The words **MUST**, **MUST NOT**, **SHOULD**, and **MAY** are normative.
@@ -196,6 +198,8 @@ This profile is based on:
 - [NPCI merchant QR / deep-linking compliance circular](https://www.npci.org.in/PDF/npci/upi/circular/2017/Circular18_BankCompliances_to_enbaleUPIMerchantecosystem_0.pdf)
 - [Google Pay for India: Android in-app UPI payments](https://developers.google.com/pay/india/api/android/in-app-payments)
 - [Google Pay for India: Android prerequisites](https://developers.google.com/pay/india/api/android/overview)
+- [Paytm Payments: UPI Smart Intent](https://www.paytmpayments.com/docs/upi-smart-intent/)
+- [NPCI BHIM UPI Guidelines, June 2026](https://www.npci.org.in/uploads/BHIM_UPI_Guidelines_2026_012a0b1bce.pdf)
 - [Android package visibility declarations](https://developer.android.com/training/package-visibility/declaring)
 - [Android Activity Result contract](https://developer.android.com/reference/androidx/activity/result/contract/ActivityResultContracts.StartActivityForResult)
 
